@@ -8,21 +8,21 @@ import {
     ReactNode
 } from "react";
 import axios from "axios";
+import api from "../api/axios";
 
-// 1. Define strict types instead of 'any'
 interface User {
     id: string;
     email: string;
     name: string;
-    // add other fields your API returns
 }
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
     error: string | null;
-    login: (userData: User) => void;
+    login: (credentials: any) => Promise<void>; // Changed to handle the logic
     logout: () => Promise<void>;
+    register: (formData: any) => Promise<void>;
     refreshUser: () => Promise<void>;
 }
 
@@ -32,19 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    const api = axios.create({
-        baseURL: `${import.meta.env.VITE_API_URL}`,
-        withCredentials: true,
-        withXSRFToken: true,
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        }
-    });
 
-
-
-    // 2. Wrap the check in useCallback so it's stable
     const checkAuth = useCallback(async () => {
         setLoading(true);
         try {
@@ -53,23 +41,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setError(null);
         } catch (err: any) {
             setUser(null);
-            // Only set error if it's not a simple 401 (unauthorized)
             if (err.response?.status !== 401) {
-                setError("Failed to fetch user session");
+                setError("Session expired or server error");
             }
         } finally {
             setLoading(false);
         }
     }, []);
 
-    const login = (userData: User) => setUser(userData);
+
+    const login = async (credentials: any) => {
+        try {
+            await api.get('/sanctum/csrf-cookie');
+            const res = await api.post('/api/auth/login', credentials);
+            setUser(res.data.user);
+            setError(null);
+        } catch (err: any) {
+            const message = err.response?.data?.message || "Login failed";
+            setError(message);
+            throw new Error(message); // Re-throw so the component can handle UI state
+        }
+    };
 
     const logout = async () => {
         try {
-            await axios.post("/api/logout");
-            setUser(null);
+            await api.post("/api/auth/logout"); // Use 'api', not 'axios'
         } catch (err) {
             console.error("Logout failed", err);
+        } finally {
+            // Always clear user state even if request fails
+            setUser(null);
+        }
+    };
+
+    const register = async (formData: any) => {
+        try {
+            await api.get('/sanctum/csrf-cookie');
+            // Your specific endpoint: /api/auth/register/candidate
+            const res = await api.post('/api/auth/register/candidate', formData);
+
+            // Laravel Sanctum usually logs the user in automatically after registration
+            // If your API returns the user object, set it here:
+            setUser(res.data.user);
+            setError(null);
+        } catch (err: any) {
+            const message = err.response?.data?.message || "Registration failed";
+            setError(message);
+            throw new Error(message);
         }
     };
 
@@ -77,25 +95,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         checkAuth();
     }, [checkAuth]);
 
-    // 3. Memoize the context value
-    // This prevents all consumers from re-rendering unless user/loading actually changes
     const value = useMemo(() => ({
         user,
         loading,
         error,
         login,
         logout,
+        register,
         refreshUser: checkAuth
     }), [user, loading, error, checkAuth]);
 
     return (
         <AuthContext.Provider value={value}>
-            {children}
+            {/* Prevent flickering: Don't show app until we know auth status */}
+            {!loading ? children : <div className="loading-spinner">Loading...</div>}
         </AuthContext.Provider>
     );
 };
 
-// 4. Improved Hook with error handling
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (context === undefined) {

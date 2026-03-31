@@ -1,1 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@100..900&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@layer base {
+    html {
+        /* 2. Set Roboto as the global default */
+        font-family: 'Roboto', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+.tiptap [data-type="column-layout"] {
+    display: grid;
+    gap: 1rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.tiptap [data-type="column-block"] {
+    border: 1px dashed #e2e8f0;
+    border-radius: 6px;
+    padding: 0.5rem;
+    min-height: 2rem;
+}
